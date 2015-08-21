@@ -1,0 +1,118 @@
+#!/usr/bin/env python2
+"""Postprocess Answer Sets.
+
+Usage:
+  ppas <script> <infile> <outfile> [--clingo-bin=<path>, --quiet]
+  ppas -h | --help
+  ppas --version
+
+Options:
+  --clingo-bin=<path>       Path to clingo binary.
+  --quiet                   Disable stdout messages.
+  -h --help                 Show this screen.
+  --version                 Show version.
+"""
+
+# ppas <files> # save to same dir as read from, appended with .ppas, or .N.ppas
+#              # if already appended
+# ppas --out-dir=out/ <files> # save to out-dir with original name or if clash then?
+
+from __future__ import print_function
+
+import subprocess
+import json
+import re
+
+from docopt import docopt
+
+# Parse arguments.
+args = docopt(__doc__, version='0.1')
+
+# Could do fancy parsing things, but we only need the strings containing the
+# answer sets. We can assume that clingo/clasp logs have the answer set line
+# following the "Answer: \d+" line.
+
+# options:
+# --out-dir=foo/, otherwise same dir as file and append .ppas, ppas1, ..., ppasN
+# list of files
+
+
+# wrap to _as(Term, S), unwrap from _pp(Term, S) ?
+
+
+# FIRST: one file, ppas infile outfile
+
+# loop clingo, write output
+
+# (something, answerset)*, something
+answerNumberLineRe = re.compile(
+    r'^Answer: \d+$'
+)
+postprocessTermRe = re.compile(
+    r'^_pp\((?P<term>.+),(?P<sequenceNum>\d+)\)$'
+)
+
+# We have to keep all the answer sets in memory, and these should represent the
+# largest portion of the logfile in bytes, so might as well keep the full file
+# in memory.
+lines = []
+answerSetLineNums = []
+
+if not args['--quiet']: print('Reading input file', args['<infile>'], '...')
+# Read the file and flag answer set line numbers
+count = 0
+with open(args['<infile>'], 'r') as f:
+    for line in f:
+        lines.append(line)
+        count += 1
+        if answerNumberLineRe.match(line) is not None:
+            answerSetLineNums.append(count) # count points to next line
+
+# Enclose terms to as(Term, AsCurrent)
+wrappedTerms = []
+asCount = len(answerSetLineNums)
+for asCurrent in range(0, asCount):
+    curLine = lines[answerSetLineNums[asCurrent]]
+    wrappedTerms.extend([ '_as(' + term + ',' + str(asCurrent+1) + ')' for term in curLine.split(' ')])
+
+wrappedTermsStr = '. '.join(wrappedTerms) + '.'
+executable = args['--clingo-bin'] if args['--clingo-bin'] is not None else 'clingo'
+
+if not args['--quiet']: print('Calling', executable, 'with script', args['<script>'], '...')
+
+# Execute clingo, make it read script and also read from stdin
+inputStr = wrappedTermsStr + '#const asCount = ' + str(asCount) + '.'
+cl = subprocess.Popen([executable, '--outf=2', args['<script>'], '-'], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+cl.stdin.write(wrappedTermsStr.encode('utf-8'))
+cl.stdin.close()
+if not args['--quiet']: print('Reading from clingo...')
+outJson = json.loads(str(cl.stdout.read()))
+outTerms = outJson['Call'][0]['Witnesses'][0]['Value']
+
+relevantTerms = []
+for i in range(0, asCount):
+    relevantTerms.append([])
+
+for term in outTerms:
+    m = postprocessTermRe.match(term)
+    #print("term:", '"'+term+'"', 'match:', m)
+    if m is not None and int(m.group('sequenceNum')) <= asCount:
+        #print("match:", m.group('term'), "for seq:", m.group('sequenceNum'))
+        relevantTerms[int(m.group('sequenceNum'))-1].append(m.group('term'))
+
+# Output rewritten log
+if not args['--quiet']: print("Outputting rewritten log...")
+count = 0
+with open(args['<outfile>'], 'w') as f:
+    for line in lines:
+        if count in answerSetLineNums:
+            f.write(' '.join(relevantTerms[answerSetLineNums.index(count)]))
+            f.write("\n")
+        else:
+            f.write(line)
+        count += 1
+
+if not args['--quiet']: print('Written to', args['<outfile>'])
+if not args['--quiet']: print('Done')
+
+# EOF
