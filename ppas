@@ -13,10 +13,6 @@ Options:
   --version                 Show version.
 """
 
-# ppas <files> # save to same dir as read from, appended with .ppas, or .N.ppas
-#              # if already appended
-# ppas --out-dir=out/ <files> # save to out-dir with original name or if clash then?
-
 from __future__ import print_function
 
 import subprocess
@@ -68,25 +64,39 @@ with open(args['<infile>'], 'r') as f:
         if answerNumberLineRe.match(line) is not None:
             answerSetLineNums.append(count) # count points to next line
 
-# Enclose terms to as(Term, AsCurrent)
+# Enclose terms to predicate as(Term, AsCurrent)
 wrappedTerms = []
 asCount = len(answerSetLineNums)
 for asCurrent in range(0, asCount):
     curLine = lines[answerSetLineNums[asCurrent]]
     wrappedTerms.extend([ '_as(' + term + ',' + str(asCurrent+1) + ')' for term in curLine.split(' ')])
 
-wrappedTermsStr = '. '.join(wrappedTerms) + '.'
+wrappedTermsStr = '. '.join(wrappedTerms)
+if len(wrappedTerms) > 0:
+    wrappedTermsStr += '.' # add final dot
 executable = args['--clingo-bin'] if args['--clingo-bin'] is not None else 'clingo'
 
 if not args['--quiet']: print('Calling', executable, 'with script', args['<script>'], '...')
 
 # Execute clingo, make it read script and also read from stdin
 inputStr = wrappedTermsStr + '#const asCount = ' + str(asCount) + '.'
+#print(inputStr)
 cl = subprocess.Popen([executable, '--outf=2', args['<script>'], '-'], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 cl.stdin.write(wrappedTermsStr.encode('utf-8'))
 cl.stdin.close()
+
 if not args['--quiet']: print('Reading from clingo...')
-outJson = json.loads(str(cl.stdout.read()))
+clingoOutput = str(cl.stdout.read())
+# Read clingo messages and pass them on
+jsonStart = clingoOutput.find("\n{") # Trust that first \n{ will be start of JSON.
+jsonPart = clingoOutput[jsonStart:]
+messages = clingoOutput[:jsonStart]
+
+print("\nMessages when postprocessing", args['<infile>'], 'with', args['<script>'] + ':')
+print('----------')
+print(messages)
+
+outJson = json.loads(jsonPart)
 outTerms = outJson['Call'][0]['Witnesses'][0]['Value']
 
 relevantTerms = []
