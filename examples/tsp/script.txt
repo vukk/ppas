@@ -11,7 +11,6 @@ added(From, To, Step) :- not _as(edge(From,To), Step-1), _as(edge(From,To), Step
 other(From, To, Step) :- _as(edge(From,To), Step), not added(From, To, Step).
 
 % Add and color removed edges
-_pp(removed(From,To),Step) :- removed(From,To,Step).
 _pp(edge(From,To),Step) :- removed(From,To,Step).
 _pp(edgeAttr((From, To), color, "#ee0000"), Step) :- removed(From, To, Step).
 
