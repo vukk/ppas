@@ -68,8 +68,10 @@ with open(args['<infile>'], 'r') as f:
 wrappedTerms = []
 asCount = len(answerSetLineNums)
 for asCurrent in range(0, asCount):
-    curLine = lines[answerSetLineNums[asCurrent]]
-    wrappedTerms.extend([ '_as(' + term + ',' + str(asCurrent+1) + ')' for term in curLine.split(' ')])
+    curLine = lines[answerSetLineNums[asCurrent]].strip()
+    #print("\"" + curLine + "\"")
+    #print(curLine.split())
+    wrappedTerms.extend([ '_as(' + term + ',' + str(asCurrent+1) + ')' for term in curLine.split()])
 
 wrappedTermsStr = '. '.join(wrappedTerms)
 if len(wrappedTerms) > 0:
