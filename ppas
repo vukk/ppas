@@ -81,22 +81,27 @@ executable = args['--clingo-bin'] if args['--clingo-bin'] is not None else 'clin
 if not args['--quiet']: print('Calling', executable, 'with script', args['<script>'], '...')
 
 # Execute clingo, make it read script and also read from stdin
-inputStr = wrappedTermsStr + '#const asCount = ' + str(asCount) + '.'
+#inputStr = '#const asCount = ' + str(asCount) + '. ' + wrappedTermsStr
+inputStr = wrappedTermsStr
 #print(inputStr)
-cl = subprocess.Popen([executable, '--outf=2', args['<script>'], '-'], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+cl = subprocess.Popen([executable, '--outf=2', '-c asCount='+str(asCount), '-', args['<script>']], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 cl.stdin.write(wrappedTermsStr.encode('utf-8'))
 cl.stdin.close()
 
 if not args['--quiet']: print('Reading from clingo...')
 clingoOutput = str(cl.stdout.read())
 # Read clingo messages and pass them on
-jsonStart = clingoOutput.find("\n{") # Trust that first \n{ will be start of JSON.
+jsonStart = clingoOutput.find("\n{") # Trust that first { will be start of JSON.
+if jsonStart == -1:
+    jsonStart = clingoOutput.find('{')
 jsonPart = clingoOutput[jsonStart:]
 messages = clingoOutput[:jsonStart]
+#print('jsonStart',jsonStart,'jsonPart',jsonPart)
 
-print("\nMessages when postprocessing", args['<infile>'], 'with', args['<script>'] + ':')
-print('----------')
-print(messages)
+if len(messages) > 1:
+    print("\nMessages when postprocessing", args['<infile>'], 'with', args['<script>'] + ':')
+    print('----------')
+    print(messages)
 
 outJson = json.loads(jsonPart)
 outTerms = outJson['Call'][0]['Witnesses'][0]['Value']
@@ -118,10 +123,10 @@ count = 0
 with open(args['<outfile>'], 'w') as f:
     for line in lines:
         if count in answerSetLineNums:
-            f.write(' '.join(relevantTerms[answerSetLineNums.index(count)]))
+            f.write(' '.join(relevantTerms[answerSetLineNums.index(count)]).encode('utf-8'))
             f.write("\n")
         else:
-            f.write(line)
+            f.write(line.encode('utf-8'))
         count += 1
 
 if not args['--quiet']: print('Written to', args['<outfile>'])
