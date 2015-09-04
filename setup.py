@@ -14,7 +14,7 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        ppas=ppas.ppas:cli
+        ppas=ppas.ppas:main
     ''',
     classifiers=[
         'Programming Language :: Python',
