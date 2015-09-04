@@ -12,6 +12,7 @@ replaced with atoms read from a special predicate _pp(Term, SequenceNum).
 
 E.g. adding the atom "a." to the first answer set in the log could be done with
 the following ASP script::
+
 	% Add "a." to first answer set / model
 	_pp(a, 1).
 	% Pass everything else through
@@ -25,12 +26,14 @@ Installing
 ----------
 
 Run::
+
 	pip install --user ppas
 
 
 Usage
 -----
 ::
+
   ppas.py <script> <infile> <outfile> [--clingo-bin=<path>, --quiet]
   ppas.py -h | --help
   ppas.py --version
@@ -46,6 +49,7 @@ Examples
 
 Examples are available in the examples/ directory.
 E.g.::
+
   ppas.py examples/tsp/script.asp examples/tsp/log.txt tsp-processed.txt
 
 License
