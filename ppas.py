@@ -32,7 +32,7 @@ import re
 from docopt import docopt
 
 # Parse arguments.
-args = docopt(__doc__, version='0.1')
+args = docopt(__doc__, version='0.1.0')
 
 # Regexp for detecting the answer number line in the input log.
 answerNumberLineRe = re.compile(

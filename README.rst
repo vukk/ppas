@@ -54,3 +54,5 @@ E.g.::
 
 License
 -------
+
+MIT. See LICENSE.txt
