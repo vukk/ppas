@@ -1,10 +1,20 @@
-#!/usr/bin/env python2
 """Postprocess Answer Sets.
 
+This program accepts clingo 4.x and clasp 3.x log files and an ASP script for
+postprocessing. The result is a rewritten log file.
+
+Each answer is assigned a sequence number starting from 1 and it's atoms are
+wrapped in the special predicate _as(Atom, SequenceNum). The answer sets are
+replaced with atoms read from a special predicate _pp(Atom, SequenceNum).
+
+Note that the sequence number does not necessarily correspond to <num> in the
+"Answer: <num>" line in the input log file; for example when multiple solve
+calls were used.
+
 Usage:
-  ppas <script> <infile> <outfile> [--clingo-bin=<path>, --quiet]
-  ppas -h | --help
-  ppas --version
+  ppas.py <script> <infile> <outfile> [--clingo-bin=<path>, --quiet]
+  ppas.py -h | --help
+  ppas.py --version
 
 Options:
   --clingo-bin=<path>       Path to clingo binary.
@@ -24,28 +34,13 @@ from docopt import docopt
 # Parse arguments.
 args = docopt(__doc__, version='0.1')
 
-# Could do fancy parsing things, but we only need the strings containing the
-# answer sets. We can assume that clingo/clasp logs have the answer set line
-# following the "Answer: \d+" line.
-
-# options:
-# --out-dir=foo/, otherwise same dir as file and append .ppas, ppas1, ..., ppasN
-# list of files
-
-
-# wrap to _as(Term, S), unwrap from _pp(Term, S) ?
-
-
-# FIRST: one file, ppas infile outfile
-
-# loop clingo, write output
-
-# (something, answerset)*, something
+# Regexp for detecting the answer number line in the input log.
 answerNumberLineRe = re.compile(
     r'^Answer: \d+$'
 )
-postprocessTermRe = re.compile(
-    r'^_pp\((?P<term>.+),(?P<sequenceNum>\d+)\)$'
+# Regexp for reading atoms out of the clingo result.
+postprocessAtomRe = re.compile(
+    r'^_pp\((?P<atom>.+),(?P<sequenceNum>\d+)\)$'
 )
 
 # We have to keep all the answer sets in memory, and these should represent the
@@ -56,36 +51,31 @@ answerSetLineNums = []
 
 if not args['--quiet']: print('Reading input file', args['<infile>'], '...')
 # Read the file and flag answer set line numbers
-count = 0
+lineNum = 0
 with open(args['<infile>'], 'r') as f:
     for line in f:
         lines.append(line)
-        count += 1
+        lineNum += 1
         if answerNumberLineRe.match(line) is not None:
-            answerSetLineNums.append(count) # count points to next line
+            answerSetLineNums.append(lineNum) # lineNum points to next line now
 
-# Enclose terms to predicate as(Term, AsCurrent)
-wrappedTerms = []
+# Wrap atoms to predicate _as(Atom, AsCurrent)
+wrappedAtoms = []
 asCount = len(answerSetLineNums)
 for asCurrent in range(0, asCount):
     curLine = lines[answerSetLineNums[asCurrent]].strip()
-    #print("\"" + curLine + "\"")
-    #print(curLine.split())
-    wrappedTerms.extend([ '_as(' + term + ',' + str(asCurrent+1) + ')' for term in curLine.split()])
+    wrappedAtoms.extend([ '_as(' + atom + ',' + str(asCurrent+1) + ')' for atom in curLine.split()])
 
-wrappedTermsStr = '. '.join(wrappedTerms)
-if len(wrappedTerms) > 0:
-    wrappedTermsStr += '.' # add final dot
+wrappedAtomsStr = '. '.join(wrappedAtoms)
+if len(wrappedAtoms) > 0:
+    wrappedAtomsStr += '.' # add final dot
 executable = args['--clingo-bin'] if args['--clingo-bin'] is not None else 'clingo'
 
 if not args['--quiet']: print('Calling', executable, 'with script', args['<script>'], '...')
 
 # Execute clingo, make it read script and also read from stdin
-#inputStr = '#const asCount = ' + str(asCount) + '. ' + wrappedTermsStr
-inputStr = wrappedTermsStr
-#print(inputStr)
 cl = subprocess.Popen([executable, '--outf=2', '-c asCount='+str(asCount), '-', args['<script>']], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-cl.stdin.write(wrappedTermsStr.encode('utf-8'))
+cl.stdin.write(wrappedAtomsStr.encode('utf-8'))
 cl.stdin.close()
 
 if not args['--quiet']: print('Reading from clingo...')
@@ -96,40 +86,35 @@ if jsonStart == -1:
     jsonStart = clingoOutput.find('{')
 jsonPart = clingoOutput[jsonStart:]
 messages = clingoOutput[:jsonStart]
-#print('jsonStart',jsonStart,'jsonPart',jsonPart)
 
 if len(messages) > 1:
-    print("\nMessages when postprocessing", args['<infile>'], 'with', args['<script>'] + ':')
+    print("\nMessages from postprocessing", args['<infile>'], 'with', args['<script>'] + ':')
     print('----------')
     print(messages)
 
 outJson = json.loads(jsonPart)
-outTerms = outJson['Call'][0]['Witnesses'][0]['Value']
+outAtoms = outJson['Call'][0]['Witnesses'][0]['Value']
 
-relevantTerms = []
+relevantAtoms = []
 for i in range(0, asCount):
-    relevantTerms.append([])
+    relevantAtoms.append([])
 
-for term in outTerms:
-    m = postprocessTermRe.match(term)
-    #print("term:", '"'+term+'"', 'match:', m)
+for atom in outAtoms:
+    m = postprocessAtomRe.match(atom)
     if m is not None and int(m.group('sequenceNum')) <= asCount:
-        #print("match:", m.group('term'), "for seq:", m.group('sequenceNum'))
-        relevantTerms[int(m.group('sequenceNum'))-1].append(m.group('term'))
+        relevantAtoms[int(m.group('sequenceNum'))-1].append(m.group('atom'))
 
 # Output rewritten log
 if not args['--quiet']: print("Outputting rewritten log...")
-count = 0
+lineNum = 0
 with open(args['<outfile>'], 'w') as f:
     for line in lines:
-        if count in answerSetLineNums:
-            f.write(' '.join(relevantTerms[answerSetLineNums.index(count)]).encode('utf-8'))
+        if lineNum in answerSetLineNums:
+            f.write(' '.join(relevantAtoms[answerSetLineNums.index(lineNum)]).encode('utf-8'))
             f.write("\n")
         else:
             f.write(line.encode('utf-8'))
-        count += 1
+        lineNum += 1
 
 if not args['--quiet']: print('Written to', args['<outfile>'])
 if not args['--quiet']: print('Done')
-
-# EOF
