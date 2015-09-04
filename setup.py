@@ -24,5 +24,5 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     url='https://github.com/vukk/ppas',
-    download_url='https://github.com/vukk/ppas/tarball/0.1.0',
+    download_url='https://github.com/vukk/ppas/tarball/v0.1.0',
 )
