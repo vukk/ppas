@@ -12,6 +12,10 @@ setup(
     install_requires=[
         'docopt',
     ],
+    entry_points='''
+        [console_scripts]
+        ppas=ppas.ppas:cli
+    ''',
     classifiers=[
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
