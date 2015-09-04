@@ -34,9 +34,9 @@ Usage
 -----
 ::
 
-  ppas.py <script> <infile> <outfile> [--clingo-bin=<path>, --quiet]
-  ppas.py -h | --help
-  ppas.py --version
+  ppas <script> <infile> <outfile> [--clingo-bin=<path>, --quiet]
+  ppas -h | --help
+  ppas --version
 
 	Options:
   	--clingo-bin=<path>       Path to clingo binary.
